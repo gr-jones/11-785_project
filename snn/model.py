@@ -1,7 +1,8 @@
+import torch
 from torch import nn
 
-import functional as F
-from activations import SpikeActivation
+import snn.functional as F
+from snn.activations import SpikeActivation
 
 
 class SpikingLinearLayer(nn.Module):
@@ -9,12 +10,13 @@ class SpikingLinearLayer(nn.Module):
     EVENTPROP = 1
 
     def __init__(self, input_dim, output_dim, T=20, dt=1,
-                 tau_m=20.0, tau_s=5.0, mu=0.1, backprop=SPIKEPROP):
-        super(SpikingLinear, self).__init__()
+                 tau_m=20.0, tau_s=5.0, mu=0.1,
+                 backprop=SPIKEPROP):
+        super(SpikingLinearLayer, self).__init__()
 
         self.input_dim = input_dim
         self.output_dim = output_dim
-        self.steps = self.T // self.dt
+        self.steps = T // dt
         self.dt = dt
         self.tau_m = tau_m
         self.tau_s = tau_s
@@ -22,9 +24,9 @@ class SpikingLinearLayer(nn.Module):
         self.weight = nn.Parameter(torch.Tensor(output_dim, input_dim))
         nn.init.normal_(self.weight, mu, mu)
 
-        if backprop == SPIKEPROP:
+        if backprop == SpikingLinearLayer.SPIKEPROP:
             self.slinear = F.SpikingLinearSpikeProp
-        elif backprop == EVENTPROP:
+        elif backprop == SpikingLinearLayer.EVENTPROP:
             self.slinear = F.SpikingLinearEventProp
         else:
             raise Exception(
@@ -39,14 +41,25 @@ class SpikingLinearLayer(nn.Module):
 
 
 class SNN(nn.Module):
+    SPIKEPROP = 0
+    EVENTPROP = 1
+
     # single layer SNN
-    def __init__(self, input_dim, output_dim, backprop):
+    def __init__(self, input_dim, output_dim, T=20, dt=1,
+                 tau_m=20.0, tau_s=5.0, mu=0.1, backprop=SPIKEPROP):
         super(SNN, self).__init__()
-        self.slinear1 = SpikingLinear(
+        self.slinear1 = SpikingLinearLayer(
             input_dim,
             output_dim,
             backprop=backprop)
         self.outact = SpikeActivation()
+
+        self.T = T
+        self.dt = dt
+        self.tau_m = tau_m
+        self.tau_s = tau_s
+        self.mu = mu
+        self.backprop = 'EVENTPROP' if backprop == 1 else 'SPIKEPROP'
 
     def forward(self, input):
         u = self.slinear1(input)
