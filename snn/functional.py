@@ -3,7 +3,6 @@ import torch.nn.functional as F
 
 from torch.autograd import Function
 
-
 class SpikingLinearSpikeProp(Function):
     @staticmethod
     def forward(ctx, x, w, steps, dt, tau_m, tau_s, training):
@@ -148,3 +147,31 @@ class SpikeActivation(Function):
         k = F.one_hot(first_spike_times.long(), ctx.N)
 
         return k * grad_output.unsqueeze(-1)
+
+
+class ThresholdActivation(Function):
+    @staticmethod
+    def forward(ctx, input):
+        ctx.save_for_backward(input)
+
+        thresh = torch.nn.Threshold(1, 1, inplace=True)
+        spike_state = thresh(input)
+
+        return spike_state
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        '''
+        Use derivative of tanh to approximate derivative of threshold function
+        '''
+        # retrieve input values 
+        voltage_state = ctx.saved_tensors[0]
+        x = voltage_state # to make things easier to read
+
+        # calculate derivative of voltage_state [1 - (tanh(x))^2]
+        dx = torch.ones(voltage_state.shape) - torch.sqaure((torch.tanh(voltage_state)))
+
+        # calculate gradient w.r.t. voltage_state
+        grad_voltage_state = dx*grad_output
+
+        return grad_voltage_state
