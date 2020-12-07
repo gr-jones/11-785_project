@@ -8,7 +8,7 @@ from torch import optim
 import torch.nn.functional as F
 from torchvision import datasets, transforms
 
-from snn.model import SNN
+from snn.model import SNN, SNU_Net
 from snn.loss import SpikeCELoss
 
 
@@ -111,15 +111,23 @@ def test(model, loader):
 
 def main(batch_size=128, num_epochs=40):
 
-    model = SNN(
-        input_dim=784,
-        output_dim=10,
-        T=20,
-        dt=1,
-        tau_m=20.0,
-        tau_s=5.0,
-        mu=0.1,
-        backprop=SNN.EVENTPROP).cuda()
+    # model = SNN(
+    #     input_dim=784,
+    #     output_dim=10,
+    #     T=20,
+    #     dt=1,
+    #     tau_m=20.0,
+    #     tau_s=5.0,
+    #     mu=0.1,
+    #     backprop=SNN.EVENTPROP).cuda()
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    model = SNU_Net(input_size=784,
+                    num_neurons=10, 
+                    threshold_level=1, 
+                    time_duration=20, 
+                    device=device)
 
     criterion = SpikeCELoss(T=20, xi=0.4, tau_s=5.0)
 
