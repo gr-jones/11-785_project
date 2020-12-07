@@ -53,7 +53,7 @@ def train(model, criterion, optimizer, loader, alpha=0.01, beta=2.0):
     num_batches = len(loader)
 
     for batch_idx, (x, target) in enumerate(loader):
-        x, target = x.cuda(), target.cuda()
+        # x, target = x.cuda(), target.cuda()
         x = encode_data(x)
 
         output = model(x)
@@ -109,7 +109,7 @@ def test(model, loader):
         print('\t\t Test: \tAcc %4.2f' % (100 * total_correct / total_samples))
 
 
-def main(batch_size=128, num_epochs=40):
+def main(batch_size=1, num_epochs=3):
 
     # model = SNN(
     #     input_dim=784,
