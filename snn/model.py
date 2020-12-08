@@ -1,10 +1,12 @@
-import numpy as np
 import torch
 from torch import nn
 
-import snn.functional as F
-from snn.activations import SpikeActivation, ThresholdActivation
+import torch.nn.functional as F
 
+import snn.functional as snnF
+from snn.activations import SpikeActivation
+
+import random
 
 class SpikingLinearLayer(nn.Module):
     SPIKEPROP = 0
@@ -26,9 +28,9 @@ class SpikingLinearLayer(nn.Module):
         nn.init.normal_(self.weight, mu, mu)
 
         if backprop == SpikingLinearLayer.SPIKEPROP:
-            self.slinear = F.SpikingLinearSpikeProp
+            self.slinear = snnF.SpikingLinearSpikeProp
         elif backprop == SpikingLinearLayer.EVENTPROP:
-            self.slinear = F.SpikingLinearEventProp
+            self.slinear = snnF.SpikingLinearEventProp
         else:
             raise Exception(
                 'SpikingLinearLayer: invalid selection of backprop algorithm!')
@@ -68,69 +70,98 @@ class SNN(nn.Module):
         return u
 
 
-class SNU_Net(nn.Module):
-    '''
-    This class defines a single Spiking Neural Unit Network (SNU_Net).
+class SNU(nn.Module):
+    def __init__(self, input_size, hidden_size, decay, num_layers=1):
+        super(SNU, self).__init__()
 
-    Args:
-        weight_xh (tensor):         the input weights [W in paper eqn(3)] - (input_size, num_neurons)
-        weight_decay (tensor):      voltage decay values [fancy l in paper eqn(3)] = (num_neurons, num_neurons)
-        s_t (tensor):               voltage value [s_t in paper eqn(3)] - (num_neurons, 1)
-        reset_signal (tensor):      signal to keep or discard previous voltage value [1 - y_t in eqn(3)] - (num_neurons, 1)
+        self.snucell = SNUCell(input_size, hidden_size, decay)
 
-        time_duration (int):        time length of a single trial (sequence length)
-    '''
+    def __call__(self, *args):
+        return self.forward(*args)
 
-    def __init__(self, input_size, num_neurons, threshold_level, 
-                    time_duration, device):
-        super(SNU_Net,self).__init__()
-        
-        # Initialize SNU variables - variables that appear in eqn (3) of the paper
-        self.weight_xh = nn.Parameter(torch.rand((input_size, num_neurons), device=device, requires_grad=True))
-        self.weight_decay = torch.rand((num_neurons, num_neurons), device=device, requires_grad=True) # not sure what to initialize these to 
-        self.s_t = torch.zeros((num_neurons, 1), device=device)
-        self.reset_signal = torch.zeros((num_neurons,1), device=device)
-
-        # Construct output activation function h
-        self.h = ThresholdActivation()
-
-        # Other parameters 
-        self.time_duration = time_duration
-        self.ones = torch.ones((num_neurons,1), device=device)
-
-    def __call__(self, input, hidden = None):
-        return self.forward(input,hidden)
-
-    def forward(self, input, hidden = None):
+    def forward(self, x, hidden=None, output=None):
         '''
         Args:
-            input (tensor): (input_size, time_duration)
+            x (tensor): (batch_size, input_size)
+            hidden (tensor): (batch_size, hidden_size)
+            output (tensor): (batch_size, hidden_size)
         Return:
-            output (tensor): (time_steps, class_size)
+            output (tensor): (batch_size, hidden_size)
         '''
-        output = []
-        for t in range(self.time_duration):
-            # retrieve input spikes for given time step (t)
-            x_t = input[t]
 
-            print("-------------------------")
-            print("x_t.shape = ", x_t.shape)
-            print("self.weight_xh.shape = ", self.weight_xh.shape)
-            print("self.weight_decay.shape = ", self.weight_decay.shape)
-            print("self.s_t.shape = ", self.s_t.shape)
-            print("self.reset_signal.shape = ", self.reset_signal.shape)
-            print("-------------------------")
+        for i in range(x.shape[2]):
+            output, hidden = self.snucell(x[:,:,i], hidden, output)
 
-            # calculate voltage_state (s_t in the paper)
-            self.s_t = torch.nn.ReLU(x_t@self.weight_xh.T() + self.weight_decay*self.s_t*self.reset_signal)
+        return output
 
-            # determine if voltage is greater than threshold value. If so, y_t = 1, otherwise y_t = 0
-            y_t = self.h(self.s_t)
 
-            # store output 
-            output.append(y_t)
+class SNUCell(nn.Module):
+    '''
+        Single cell of SNU, operate at the timestep level
 
-            # calculate reset signal value
-            self.reset_signal = self.ones - y_t
+        weight (tensor): (input_size, hidden_size)
+            the input weights [W in paper eqn(3)]
 
-        return torch.cat(output)
+        bias (tensor): (1, hidden_size)
+            the bias added to state [b in paper eqn(3)]
+                            
+        decay (scalar): (*)
+            voltage decay values [fancy l in eqn(3)]
+
+        hidden (tensor): (batch_size, hidden_size)
+            voltage value [s_t in paper eqn(3)]
+
+        output (tensor): (batch_size, hidden_size)     
+            previou output value [y_t in eqn(3)]
+    '''
+
+    def __init__(self, input_size, hidden_size, decay):
+        super(SNUCell, self).__init__()
+        
+        # Initialize weight: W
+        self.weight = nn.Parameter(torch.rand(
+            (input_size, hidden_size), 
+            requires_grad=True))
+
+        # Initialize bias: b
+        self.bias = nn.Parameter(torch.rand(
+            (1, hidden_size), 
+            requires_grad=True))
+
+        # state decay factor: l(tau)
+        self.decay = decay
+
+        # Note that hidden and output are managed by SNU
+
+    def __call__(self, *args):
+        return self.forward(*args)
+
+    def forward(self, x, hidden=None, output=None):
+        '''
+        Args:
+            x (tensor): (batch_size, input_size)
+            hidden (tensor): (batch_size, hidden_size)
+            output (tensor): (batch_size, hidden_size)
+        Return:
+            output (tensor): (batch_size, hidden_size)
+        '''
+        try:
+            # Save on performance by asking for forgiveness instead of 
+            # permission: try to calculate assuming hidden is not None
+            
+            hidden = F.relu(
+                x @ self.weight + self.decay * hidden * (1 - output))
+
+        except TypeError:
+            # If we get a TypeError, it's most likely because hidden was None
+            if not hidden:
+                # Assume hidden is 0 and output is 0 initially
+                hidden = F.relu(x @ self.weight)
+            else:
+                # State is not none but we got a TypeError. Something's wrong, 
+                # so raise the error again
+                raise
+
+        output = F.threshold(hidden + self.bias, 1, 0)
+
+        return output, hidden

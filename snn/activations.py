@@ -22,4 +22,5 @@ class ThresholdActivation(nn.Module):
         return self.forward(x)
 
     def forward(self, x):
+        #return F.ThresholdActivation.apply(x)
         return F.ThresholdActivation.apply(x)
