@@ -21,7 +21,7 @@ x = range(len(train_loss_ga))
 
 # Plot EventProp and Grad Approx. training loss
 plt.plot(x, train_loss_eve, '-', label='EventProp')
-plt.plot(x, train_loss_ga, '-', label='Gradient Approximation')
+plt.plot(x, 1/train_loss_ga, '-', label='Gradient Approximation')
 
 plt.legend(loc='best')
 
