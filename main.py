@@ -50,6 +50,10 @@ def encode_data(data, t_min=2.0, t_max=12.0, T=20):
     spike_data = F.one_hot(spike_data.long(), int(T)).float()
     return spike_data
 
+# def encode_data_eventprop(data, t_min=2.0, t_max=12.0, T=20):
+#     spike_data = t_min + (t_max - t_min) * (data < 0.5).view(data.shape[0], -1)
+#     spike_data = F.one_hot(spike_data.long(), int(T))
+#     return spike_data
 
 # def encode_data_repeat(data, T=20):
 #     spike_data = (data.view(data.shape[0], -1) > 0.5).float()
@@ -223,7 +227,7 @@ def test(model, loader, useCuda=False):
 
 def plot_and_save_performance(train_accuracy, train_loss, test_accuracy, algo, num_epochs):
     
-    # plot network performance
+    # plot network performance and save plot
     x = range(num_epochs)
 
     plt.plot(x, train_accuracy, '-', label='Training Accuracy')
@@ -233,48 +237,55 @@ def plot_and_save_performance(train_accuracy, train_loss, test_accuracy, algo, n
     plt.xlabel("Epoch")
     plt.ylabel("Classification Accuracy %")
     plt.title("Network Performance Using Approximate Gradient")
+    
+    plt.savefig(".".join([algo,'png'])) # save network performance plot
+    plt.show()
+    
+    # plot training loss and save plot 
+    plt.plot(x, train_loss, '-', label='Training Loss')
+    plt.legend(loc='best')
 
-    seperator = "."
-    plt.savefig(seperator.join([algo,'png']))
+    plt.xlabel("Epoch")
+    plt.ylabel("loss")
+    plt.title("Network Training Loss Using Approximate Gradient")
+
+    filename = "".join([algo,'_loss'])
+    plt.savefig(".".join([filename,'png'])) # save training loss plot
     plt.show()
     
     # save train and test data to csv file
-        
-    # dictionary of lists   
-    dict = {'train_accuracy': train_accuracy, 'train_loss': train_loss, 'test_accuracy': test_accuracy}   
+    dict = {'train_accuracy': train_accuracy,
+            'train_loss': train_loss, 
+            'test_accuracy': test_accuracy}   
         
     df = pd.DataFrame(dict)  
 
-    filetype = 'csv'
-    filename = [algo, filetype]
-    seperator = '.'
-
     # saving the dataframe  
-    df.to_csv(seperator.join(filename)) 
+    df.to_csv(".".join([algo,'csv'])) 
 
 
 
-def main(batch_size=128, num_epochs=30, useCuda=True):
+def main(batch_size=128, num_epochs=50, useCuda=True):
 
     # Uncomment if using EventProp algo
-    algo = 'EventProp'
-    model = SNN(
-        input_dim=784,
-        output_dim=10,
-        T=20,
-        dt=1,
-        tau_m=20.0,
-        tau_s=5.0,
-        mu=0.1,
-        backprop=SNN.EVENTPROP).cuda()
+    # algo = 'EventProp'
+    # model = SNN(
+    #     input_dim=784,
+    #     output_dim=10,
+    #     T=20,
+    #     dt=1,
+    #     tau_m=20.0,
+    #     tau_s=5.0,
+    #     mu=0.1,
+    #     backprop=SNN.EVENTPROP).cuda()
     
 
     # Uncomment if using SpikeProp/gradient approximate algo
-    # algo = 'GradApprox'
-    # model = SNU(
-    #     input_size=784,
-    #     hidden_size=10,
-    #     decay=1)
+    algo = 'GradApprox'
+    model = SNU(
+        input_size=784,
+        hidden_size=10,
+        decay=1)
     
     if useCuda:
         model = model.cuda()

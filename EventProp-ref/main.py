@@ -1,4 +1,9 @@
 import argparse, torch, random
+
+import matplotlib
+import matplotlib.pyplot as plt
+import pandas as pd  
+
 import numpy as np
 from torchvision import datasets, transforms
 import torch.nn.functional as F
@@ -14,7 +19,7 @@ parser.add_argument('--print-freq', type=int, default=100, help='training stats 
 parser.add_argument('--deterministic', action='store_true', help='run in deterministic mode for reproducibility')
 
 # Training settings
-parser.add_argument('--epochs', type=int, default=40, help='number of epochs to train (default: 100)')
+parser.add_argument('--epochs', type=int, default=50, help='number of epochs to train (default: 100)')
 parser.add_argument('--lr', type=float, default=1.0, help='learning rate (default: 1.0)')
 parser.add_argument('--batch-size', type=int, default=128, help='size of batch used for each update step (default: 128)')
 
@@ -83,6 +88,11 @@ def train(model, criterion, optimizer, loader):
    
     print('\t\tTrain: \tAcc {:.2f}  Loss {:.3f}'.format(100*total_correct/total_samples, total_loss/total_samples))
 
+    train_accuracy = 100*total_correct/total_samples
+    train_loss = total_loss/total_samples
+
+    return train_accuracy, train_loss
+
 def test(model, loader):
     total_correct = 0.
     total_samples = 0.
@@ -99,6 +109,51 @@ def test(model, loader):
             total_samples += len(target)
             
         print('\t\tTest: \tAcc {:.2f}'.format(100*total_correct/total_samples))
+    
+    test_accuracy = total_correct/total_samples
+
+    return test_accuracy
+
+def plot_and_save_performance(train_accuracy, train_loss, test_accuracy, algo, num_epochs):
+    
+    # plot network performance and save plot
+    x = range(num_epochs)
+
+    plt.plot(x, train_accuracy, '-', label='Training Accuracy')
+    plt.plot(x, test_accuracy, '-', label='Test Accuracy')
+    plt.legend(loc='best')
+
+    plt.xlabel("Epoch")
+    plt.ylabel("Classification Accuracy %")
+    plt.show()
+    plt.title("Network Performance Using EventProp")
+    
+    
+    plt.savefig(".".join([algo,'png'])) # save network performance plot
+    
+    # plot training loss and save plot 
+    plt.plot(x, train_loss, '-', label='Training Loss')
+    plt.legend(loc='best')
+
+    plt.xlabel("Epoch")
+    plt.ylabel("loss")
+    plt.show()
+    plt.title("Network Training Loss Using EventProp")    
+
+    filename = "".join([algo,'_loss'])
+    plt.savefig(".".join([filename,'png'])) # save training loss plot
+    
+    # save train and test data to csv file
+    dict = {'train_accuracy': train_accuracy,
+            'train_loss': train_loss, 
+            'test_accuracy': test_accuracy}   
+        
+    df = pd.DataFrame(dict)  
+
+    # saving the dataframe  
+    df.to_csv(".".join([algo,'csv'])) 
+
+
 
 train_dataset = datasets.MNIST(args.data_folder, train=True, download=True, transform=transforms.ToTensor())
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
@@ -110,8 +165,18 @@ criterion = SpikeCELoss(args.T, args.xi, args.tau_s)
 optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
+train_accuracy = []
+train_loss = []
+test_accuracy = []
 for epoch in range(args.epochs):
     print('Epoch {:03d}/{:03d}'.format(epoch, args.epochs))
-    train(model, criterion, optimizer, train_loader)
-    test(model, test_loader)
+    train_acc, loss = train(model, criterion, optimizer, train_loader)
+    test_acc = test(model, test_loader)
+
+    train_accuracy.append(train_acc)
+    train_loss.append(loss)
+    test_accuracy.append(test_acc)    
+
     scheduler.step()
+
+plot_and_save_performance(train_accuracy, train_loss, test_accuracy, 'EventProp_og_code', args.epochs)
