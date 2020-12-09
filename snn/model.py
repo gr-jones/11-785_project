@@ -75,6 +75,7 @@ class SNU(nn.Module):
         super(SNU, self).__init__()
 
         self.snucell = SNUCell(input_size, hidden_size, decay)
+        self.activation = SpikeActivation()
 
     def __call__(self, *args):
         return self.forward(*args)
@@ -89,10 +90,13 @@ class SNU(nn.Module):
             output (tensor): (batch_size, hidden_size)
         '''
 
+        outputs = []
         for i in range(x.shape[2]):
             output, hidden = self.snucell(x[:,:,i], hidden, output)
+            outputs.append(output.unsqueeze(2))
 
-        return output
+        outputs = torch.cat(outputs, dim=2)
+        return self.activation(outputs)
 
 
 class SNUCell(nn.Module):
@@ -115,23 +119,24 @@ class SNUCell(nn.Module):
             previou output value [y_t in eqn(3)]
     '''
 
-    def __init__(self, input_size, hidden_size, decay):
+    def __init__(self, input_size, hidden_size, decay, useBias=True):
         super(SNUCell, self).__init__()
         
         # Initialize weight: W
-        self.weight = nn.Parameter(torch.rand(
-            (input_size, hidden_size), 
-            requires_grad=True))
+        self.weight = nn.Parameter(torch.Tensor(input_size, hidden_size))
+        nn.init.normal_(self.weight, 0.1, 0.1)
 
         # Initialize bias: b
-        self.bias = nn.Parameter(torch.rand(
-            (1, hidden_size), 
-            requires_grad=True))
+        self.bias = None
+        if useBias:
+            self.bias = nn.Parameter(torch.Tensor(1, hidden_size))
+            nn.init.normal_(self.bias, 0.1, 0.1)
 
         # state decay factor: l(tau)
         self.decay = decay
 
         # Note that hidden and output are managed by SNU
+        self.activation = torch.relu
 
     def __call__(self, *args):
         return self.forward(*args)
@@ -145,23 +150,17 @@ class SNUCell(nn.Module):
         Return:
             output (tensor): (batch_size, hidden_size)
         '''
-        try:
-            # Save on performance by asking for forgiveness instead of 
-            # permission: try to calculate assuming hidden is not None
-            
-            hidden = F.relu(
+
+        if hidden is None:
+            # Assume hidden is 0 and output is 0 initially
+            hidden = self.activation(x @ self.weight)
+        else:
+            hidden = self.activation(
                 x @ self.weight + self.decay * hidden * (1 - output))
 
-        except TypeError:
-            # If we get a TypeError, it's most likely because hidden was None
-            if not hidden:
-                # Assume hidden is 0 and output is 0 initially
-                hidden = F.relu(x @ self.weight)
-            else:
-                # State is not none but we got a TypeError. Something's wrong, 
-                # so raise the error again
-                raise
-
-        output = F.threshold(hidden + self.bias, 1, 0)
+        if self.bias is None:
+            output = snnF.ThresholdActivation.apply(hidden)
+        else:
+            output = snnF.ThresholdActivation.apply(hidden + self.bias)
 
         return output, hidden

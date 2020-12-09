@@ -124,18 +124,18 @@ class SpikingLinearEventProp(Function):
 class SpikeActivation(Function):
     @staticmethod
     def forward(ctx, x):
-        N = x.shape[2]
+        T = x.shape[2]
 
         idx = torch.arange(
-            N, 0, -1, dtype=torch.float32, device=x.device)
+            T, 0, -1, dtype=torch.float32, device=x.device)
         idx = idx.unsqueeze(0).unsqueeze(0)
 
         first_spike_times = torch.argmax(idx*x, dim=2).float()
 
         ctx.save_for_backward(first_spike_times.clone())
-        ctx.N = N
+        ctx.T = T
 
-        first_spike_times[first_spike_times == 0] = N-1
+        first_spike_times[first_spike_times == 0] = T-1
 
         first_spike_times.requires_grad = True
 
@@ -145,7 +145,7 @@ class SpikeActivation(Function):
     def backward(ctx, grad_output):
         first_spike_times = ctx.saved_tensors[0]
 
-        k = F.one_hot(first_spike_times.long(), ctx.N)
+        k = F.one_hot(first_spike_times.long(), ctx.T)
 
         return k * grad_output.unsqueeze(-1)
 
