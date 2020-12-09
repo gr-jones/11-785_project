@@ -47,7 +47,8 @@ if args.deterministic:
     torch.backends.cudnn.benchmark = False
 
 def encode_data(data):
-    spike_data = args.t_min + (args.t_max - args.t_min) * (data < 0.5).view(data.shape[0], -1)
+    # spike_data = args.t_min + (args.t_max - args.t_min) * (data < 0.5).view(data.shape[0], -1)
+    spike_data = args.t_min + (args.t_max - args.t_min) * (1 - data).view(data.shape[0], -1)
     spike_data = F.one_hot(spike_data.long(), int(args.T))
     return spike_data
 
@@ -112,7 +113,7 @@ def test(model, loader):
     
     test_accuracy = total_correct/total_samples
 
-    return test_accuracy
+    return test_accuracy*100
 
 def plot_and_save_performance(train_accuracy, train_loss, test_accuracy, algo, num_epochs):
     
@@ -125,11 +126,11 @@ def plot_and_save_performance(train_accuracy, train_loss, test_accuracy, algo, n
 
     plt.xlabel("Epoch")
     plt.ylabel("Classification Accuracy %")
-    plt.show()
     plt.title("Network Performance Using EventProp")
     
-    
     plt.savefig(".".join([algo,'png'])) # save network performance plot
+    plt.show()
+    plt.close()
     
     # plot training loss and save plot 
     plt.plot(x, train_loss, '-', label='Training Loss')
@@ -137,11 +138,12 @@ def plot_and_save_performance(train_accuracy, train_loss, test_accuracy, algo, n
 
     plt.xlabel("Epoch")
     plt.ylabel("loss")
-    plt.show()
     plt.title("Network Training Loss Using EventProp")    
 
     filename = "".join([algo,'_loss'])
     plt.savefig(".".join([filename,'png'])) # save training loss plot
+    plt.show()
+    plt.close()
     
     # save train and test data to csv file
     dict = {'train_accuracy': train_accuracy,

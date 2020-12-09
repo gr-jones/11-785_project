@@ -29,16 +29,16 @@ plt.xlabel("Epoch")
 plt.ylabel("Loss")
 plt.title("Training Loss")
 
-plt.savefig('training_loss.png')
+plt.savefig('training_loss_updated_data_encode.png')
 plt.show()
 plt.close()
 
 # Plot EventProp and Grad Approx. training and validation accuracy
 plt.plot(x, train_acc_eve, '-', label='EventProp - Training Accuracy')
-plt.plot(x, test_acc_eve*100, '-', label='EventProp - Validation Accuracy')
+plt.plot(x, test_acc_eve, '-', label='EventProp - Validation Accuracy')
 
-plt.plot(x, train_acc_ga*100, '-', label='Gradient Approximation - Training Accuracy')
-plt.plot(x, test_acc_ga*100, '-', label='Gradient Approximation - Validation Accuracy')
+plt.plot(x, train_acc_ga, '-', label='Gradient Approximation - Training Accuracy')
+plt.plot(x, test_acc_ga, '-', label='Gradient Approximation - Validation Accuracy')
 
 plt.legend(loc='best')
 
@@ -46,6 +46,6 @@ plt.xlabel("Epoch")
 plt.ylabel("Classification Accuracy %")
 plt.title("Classification Performance of Backprop Algorithms")
 
-plt.savefig('backprop_algos_performance.png')
+plt.savefig('backprop_algos_performance_updated_data_encode.png')
 plt.show()
 plt.close()

@@ -128,7 +128,7 @@ def train(model, criterion, optimizer, loader, useCuda=False):
     train_accuracy = total_correct / total_samples
     train_loss = total_loss / total_samples
 
-    return train_accuracy, train_loss
+    return train_accuracy*100, 1/train_loss
 
 
 def test(model, loader, useCuda=False):
@@ -153,7 +153,7 @@ def test(model, loader, useCuda=False):
 
     test_accuracy = total_correct / total_samples
 
-    return test_accuracy
+    return test_accuracy*100
 
 
 ###############################################################################
