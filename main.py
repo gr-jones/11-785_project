@@ -89,8 +89,6 @@ def train(model, criterion, optimizer, loader, alpha=0.01, beta=2.0,
 
         loss = criterion(output, target)
 
-        
-
         if type(model) == SNU:
             predictions = output.detach().argmax(dim=1)
         else:

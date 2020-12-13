@@ -4,54 +4,6 @@ import torch.nn.functional as F
 from torch.autograd import Function
 
 
-class SpikingLinearSpikeProp(Function):
-    @staticmethod
-    def forward(ctx, x, w, steps, dt, tau_m, tau_s, training):
-        # Leaky integrate and fire
-        N = x.shape[0]
-        K = w.shape[0]
-        c1 = 1 - dt / tau_m
-        c2 = 1 - dt / tau_s
-
-        V = torch.zeros(N, K, device=x.device)
-        I = torch.zeros(N, K, steps, device=x.device)
-        output = torch.zeros(N, K, steps, device=x.device, requires_grad=True)
-
-        while True:
-            for i in range(1, steps):
-                V = c1 * V + (1-c1) * I[:, :, i-1]
-                I[:, :, i] = c2 * I[:, :, i-1] + F.linear(
-                    x[:, :, i-1].float(), w)
-                output[:, :, i] = V > 1
-                V = (1-output[:, :, i]) * V
-
-            if training:
-                is_silent = output.sum(2).min(0)[0] == 0
-                w.data[is_silent] += 0.1
-                if is_silent.sum() == 0:
-                    break
-            else:
-                break
-
-        # Save for SpikeProp backward pass
-        raise Exception('Not yet implemented')
-
-        return output
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        # Load saved tensors and constants
-        raise Exception('Not yet implemented!')
-
-        # SpikeProp approximate gradient calculation
-        # grad_w[i,j] = PSP (V at fire times) * grad_output
-        # for i in timesteps (iterating from last step to first):
-        #     grad_w[:,:,i] = V[:,:,i-1] * grad_output[:,:,i-1]
-        raise Exception('Not yet implemented!')
-
-        return grad_x, grad_w, None, None, None, None, None
-
-
 class SpikingLinearEventProp(Function):
     @staticmethod
     def forward(ctx, x, w, steps, dt, tau_m, tau_s, training):
@@ -68,8 +20,7 @@ class SpikingLinearEventProp(Function):
         while True:
             for i in range(1, steps):
                 V = c1 * V + (1-c1) * I[:, :, i-1]
-                I[:, :, i] = c2 * I[:, :, i-1] + F.linear(
-                    x[:, :, i-1].float(), w)
+                I[:, :, i] = c2 * I[:, :, i-1] + F.linear(x[:, :, i-1], w)
                 output[:, :, i] = V > 1
                 V = (1-output[:, :, i]) * V
 
@@ -165,11 +116,11 @@ class ThresholdActivation(Function):
         '''
         Use derivative of tanh to approximate derivative of threshold function
         '''
-        # retrieve input values 
-        x = ctx.saved_tensors[0] # voltage_state
+        # retrieve input values
+        x = ctx.saved_tensors[0]  # voltage_state
 
         # calculate derivative of voltage_state [1 - (tanh(x))^2]
-        dx = 1 - x.tanh().square()
+        dx = 1 - x.tanh() ** 2
 
         # calculate gradient w.r.t. voltage_state
         grad_x = dx * grad_output

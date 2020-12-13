@@ -8,13 +8,10 @@ from snn.activations import SpikeActivation
 
 import random
 
-class SpikingLinearLayer(nn.Module):
-    SPIKEPROP = 0
-    EVENTPROP = 1
 
+class SpikingLinearLayer(nn.Module):
     def __init__(self, input_dim, output_dim, T=20, dt=1,
-                 tau_m=20.0, tau_s=5.0, mu=0.1,
-                 backprop=SPIKEPROP):
+                 tau_m=20.0, tau_s=5.0, mu=0.1):
         super(SpikingLinearLayer, self).__init__()
 
         self.input_dim = input_dim
@@ -27,13 +24,7 @@ class SpikingLinearLayer(nn.Module):
         self.weight = nn.Parameter(torch.Tensor(output_dim, input_dim))
         nn.init.normal_(self.weight, mu, mu)
 
-        if backprop == SpikingLinearLayer.SPIKEPROP:
-            self.slinear = snnF.SpikingLinearSpikeProp
-        elif backprop == SpikingLinearLayer.EVENTPROP:
-            self.slinear = snnF.SpikingLinearEventProp
-        else:
-            raise Exception(
-                'SpikingLinearLayer: invalid selection of backprop algorithm!')
+        self.slinear = snnF.SpikingLinearEventProp
 
     def __call__(self, x):
         return self.forward(x)
@@ -44,17 +35,11 @@ class SpikingLinearLayer(nn.Module):
 
 
 class SNN(nn.Module):
-    SPIKEPROP = 0
-    EVENTPROP = 1
-
-    # single layer SNN
     def __init__(self, input_dim, output_dim, T=20, dt=1,
-                 tau_m=20.0, tau_s=5.0, mu=0.1, backprop=SPIKEPROP):
+                 tau_m=20.0, tau_s=5.0, mu=0.1):
         super(SNN, self).__init__()
-        self.slinear1 = SpikingLinearLayer(
-            input_dim,
-            output_dim,
-            backprop=backprop)
+
+        self.slinear1 = SpikingLinearLayer(input_dim, output_dim)
         self.outact = SpikeActivation()
 
         self.T = T
@@ -62,7 +47,6 @@ class SNN(nn.Module):
         self.tau_m = tau_m
         self.tau_s = tau_s
         self.mu = mu
-        self.backprop = 'EVENTPROP' if backprop == 1 else 'SPIKEPROP'
 
     def forward(self, input):
         u = self.slinear1(input)
@@ -71,10 +55,10 @@ class SNN(nn.Module):
 
 
 class SNU(nn.Module):
-    def __init__(self, input_size, hidden_size, decay, num_layers=1):
+    def __init__(self, input_size, output_size, decay):
         super(SNU, self).__init__()
 
-        self.snucell = SNUCell(input_size, hidden_size, decay)
+        self.snucell = SNUCell(input_size, output_size, decay, useBias=True)
         self.activation = SpikeActivation()
 
     def __call__(self, *args):
@@ -92,7 +76,7 @@ class SNU(nn.Module):
 
         outputs = []
         for i in range(x.shape[2]):
-            output, hidden = self.snucell(x[:,:,i], hidden, output)
+            output, hidden = self.snucell(x[:, :, i], hidden, output)
             outputs.append(output.unsqueeze(2))
 
         outputs = torch.cat(outputs, dim=2)
@@ -108,7 +92,7 @@ class SNUCell(nn.Module):
 
         bias (tensor): (1, hidden_size)
             the bias added to state [b in paper eqn(3)]
-                            
+
         decay (scalar): (*)
             voltage decay values [fancy l in eqn(3)]
 
@@ -121,7 +105,7 @@ class SNUCell(nn.Module):
 
     def __init__(self, input_size, hidden_size, decay, useBias=True):
         super(SNUCell, self).__init__()
-        
+
         # Initialize weight: W
         self.weight = nn.Parameter(torch.Tensor(input_size, hidden_size))
         nn.init.normal_(self.weight, 0.1, 0.1)
